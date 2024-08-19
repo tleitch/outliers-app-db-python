@@ -1,6 +1,7 @@
 # app.py
 
-from shiny.express import input, ui, render
+from shiny.express import input, ui, render, session
+from shiny import reactive
 from shinywidgets import render_widget  
 import plotly.express as px
 import pandas as pd
@@ -9,6 +10,7 @@ import ibis
 from plot import plot_ozone
 import datetime
 import json
+#from table import create_outliers_table
 
 
 ui.page_opts(fillable=True)
@@ -48,8 +50,17 @@ ozone.rename(
     inplace=True,
 )
 
-ozone = ozone[["State", "Date", "PPM", "AQI", "Flag"]]
+ozone = ozone[["id", "State", "Date", "PPM", "AQI", "Flag"]]
+ozone["Flag"] = ozone["Flag"].astype("string")
 outliers = create_outliers(ozone, "PPM")
+
+selected_row = reactive.value(-1)
+
+# outliers_editable = reactive.value()
+
+# @reactive.calc
+# def outliers_editable():
+    # return outliers
 
 ui.markdown("## Identify outliers in air quality data")
 
@@ -64,21 +75,42 @@ with ui.layout_columns():
 
         @render_widget  
         def plot():
-            return plot_ozone(input.x(), input.y(), ozone, outliers)  
+            return plot_ozone(input.x(), input.y(), ozone, outliers_editable.data_view() )  
     
     with ui.card():
         ui.card_header(ui.markdown("Change `Flag` to `1` to flag a value as an error. Flagged points will appear red in the plot."))
         
         @render.data_frame
-        def table():
-            return render.DataTable(
-                outliers,
+        def outliers_editable():
+            return render.DataGrid(
+                outliers, 
                 editable=True
             )
-    
-    con.disconnect()
+        
+        ui.input_action_button("write_data", "Write to database")
 
 
+@reactive.Effect
+@reactive.event(input.write_data)
+def write_data():
+    # Capture the current state of the edited data from DataGrid
+    edited_data = outliers_editable.data_view()
 
-                
-  
+    # Find the rows where the flag value has changed
+    changed_flags = pd.merge(
+        outliers,
+        edited_data,
+        on=["id", "State", "Date", "PPM", "AQI"],  # Assuming 'id' is a unique identifier
+        suffixes=('_old', '_new')
+    )
+
+    rows_to_update = changed_flags[changed_flags["Flag_old"] != changed_flags["Flag_new"]]
+
+    # Update only the changed rows in the DuckDB database
+    for _, row in rows_to_update.iterrows():
+        sql_query = f"UPDATE ozone SET flag = '{row['Flag_new']}' WHERE id = '{row['id']}'"
+        con.raw_sql(sql_query)
+
+    # ozone_new = con.table("ozone")
+    # expr = ozone_new.flag == 1
+    # print(expr.value_counts().execute())
