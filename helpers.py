@@ -41,6 +41,7 @@ def plot_ozone(x, y, ozone, outliers):
     ozone["Flag"] = "-1"
     combined = pd.concat([outliers, ozone])
     combined["Date"] = combined.Date.astype("string")
+    combined["Flag"] = combined["Flag"].astype("string")
 
     cols = list(set([x, y]))
     combined = combined[[*cols, "Flag", "ID"]]
