@@ -2,45 +2,28 @@
 
 from shiny.express import input, ui, render, session
 from shiny import reactive
-from shinywidgets import render_widget  
+from shinywidgets import render_plotly 
 import plotly.express as px
 import pandas as pd
-import duckdb
+# import duckdb
 import ibis
-from plot import plot_ozone
-import datetime
 import json
-#from table import create_outliers_table
-
+import helpers
+import plotly.graph_objects as go
+from plotly.callbacks import Points
 
 ui.page_opts(fillable=True)
-
-
-def create_outliers(data, col):
-    iqr_bound = 1.5 * (data[col].quantile(0.75) - data[col].quantile(0.25))
-    q1 = data[col].quantile(0.25)
-    q3 = data[col].quantile(0.75)
-
-    # Filter the data to get outliers
-    outliers = data[(data[col] > (q3 + iqr_bound)) | (data[col] < (q1 - iqr_bound))]
-    
-    return outliers
-
-def initialize_database(con, source_db, table_name):
-    source_con = ibis.duckdb.connect(database=source_db)
-    table = source_con.table(table_name).execute()
-    con.create_table(table_name, table)
-    source_con.disconnect()
 
 # Initialize the Ibis connection
 con = ibis.duckdb.connect(database=':memory:')
 
 # Read initial data and initialize the table
-initialize_database(con, "data/ozone.duckdb", "ozone")
+helpers.initialize_database(con, "data/ozone.duckdb", "ozone")
 
 ozone = con.table("ozone").to_pandas()
 ozone.rename(
     columns={
+        "id": "ID",
         "state_name": "State",
         "date_local": "Date",
         "arithmetic_mean": "PPM",
@@ -50,19 +33,12 @@ ozone.rename(
     inplace=True,
 )
 
-ozone = ozone[["id", "State", "Date", "PPM", "AQI", "Flag"]]
-ozone["Flag"] = ozone["Flag"].astype("string")
-outliers = create_outliers(ozone, "PPM")
+ozone = ozone[["ID", "State", "Date", "PPM", "AQI", "Flag"]]
+ozone.loc["Flag"] = ozone["Flag"].astype("string")
+# ozone.loc[(ozone["ID"] == 462), "Flag"] = "1"
+outliers, ozone = helpers.create_outliers(ozone, "PPM")
 
-selected_row = reactive.value(-1)
-
-# outliers_editable = reactive.value()
-
-# @reactive.calc
-# def outliers_editable():
-    # return outliers
-
-ui.markdown("## Identify outliers in air quality data")
+ui.markdown("## Identify suspicious values in air quality data")
 
 with ui.layout_columns():
 
@@ -70,46 +46,90 @@ with ui.layout_columns():
         ui.card_header("Click on an outlier to highlight the point in the table.")
 
         with ui.layout_columns():
-            ui.input_select("x", "X axis", choices=["Date", "PPM", "AQI"])
-            ui.input_select("y", "Y axis", choices=["PPM", "AQI"])
+            ui.input_select("x", "X-axis variable:", choices=["Date", "PPM", "AQI"])
+            ui.input_select("y", "Y-axis variable:", choices=["PPM", "AQI"])
 
-        @render_widget  
+        @render_plotly
         def plot():
-            return plot_ozone(input.x(), input.y(), ozone, outliers_editable.data_view() )  
-    
+            fig = helpers.plot_ozone(input.x(), input.y(), ozone, outliers_editable.data_view()) 
+            fig.data[0].on_click(on_point_click)
+            return fig
+
+        pt_selected = reactive.value()
+
+        def on_point_click(trace, points, state):
+            pt_selected.set(points)
+        
     with ui.card():
         ui.card_header(ui.markdown("Change `Flag` to `1` to flag a value as an error. Flagged points will appear red in the plot."))
         
         @render.data_frame
         def outliers_editable():
+            outliers["Date"] = outliers.Date.astype("string")
             return render.DataGrid(
                 outliers, 
-                editable=True
+                editable=True,
+                selection_mode="rows"
             )
+        
+        @reactive.effect
+        async def _():
+            points: Points | None = pt_selected.get()
+            if points is None:
+                await outliers_editable.update_cell_selection({"type": "row", "rows": []})
+
+            point_inds: list[int] = points.point_inds
+            print(points)
+
+            await outliers_editable.update_cell_selection({"type": "row", "rows": point_inds})
+
         
         ui.input_action_button("write_data", "Write to database")
 
+        @outliers_editable.set_patch_fn
+        def upgrade_patch(*, patch):
+            return helpers.validate_patch(
+                patch, 
+                outliers_editable.data().iloc[patch["row_index"], patch["column_index"]]
+            )
 
 @reactive.Effect
 @reactive.event(input.write_data)
 def write_data():
+
     # Capture the current state of the edited data from DataGrid
     edited_data = outliers_editable.data_view()
 
     # Find the rows where the flag value has changed
-    changed_flags = pd.merge(
+    changed_values = pd.merge(
         outliers,
         edited_data,
-        on=["id", "State", "Date", "PPM", "AQI"],  # Assuming 'id' is a unique identifier
+        on=["ID", "State", "Date", "PPM", "AQI"],  
         suffixes=('_old', '_new')
     )
 
-    rows_to_update = changed_flags[changed_flags["Flag_old"] != changed_flags["Flag_new"]]
+    rows_to_update = changed_values[changed_values["Flag_old"] != changed_values["Flag_new"]]
 
     # Update only the changed rows in the DuckDB database
     for _, row in rows_to_update.iterrows():
-        sql_query = f"UPDATE ozone SET flag = '{row['Flag_new']}' WHERE id = '{row['id']}'"
+        outliers.loc[outliers['ID'] == row['ID'], 'Flag'] = row['Flag_new']
+        sql_query = f"UPDATE ozone SET flag = '{row['Flag_new']}' WHERE id = '{row['ID']}'"
         con.raw_sql(sql_query)
+    
+    
+    n_rows = len(rows_to_update)
+    if n_rows > 0:
+        if n_rows == 1:
+            values = "value"
+        else:
+            values = "values"
+        ui.notification_show(
+            ui.markdown(f"`{n_rows}` {values} successfully updated in database."),
+            type="message", 
+            duration=5
+        )
+    else:
+        ui.notification_show(ui.markdown("No changes to write to database."), type="warning")
 
     # ozone_new = con.table("ozone")
     # expr = ozone_new.flag == 1
