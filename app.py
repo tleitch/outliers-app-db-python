@@ -5,11 +5,9 @@ from shiny import reactive
 from shinywidgets import render_plotly 
 import plotly.express as px
 import pandas as pd
-# import duckdb
 import ibis
-import json
 import helpers
-import plotly.graph_objects as go
+#import plotly.graph_objects as go
 from plotly.callbacks import Points
 
 ui.page_opts(fillable=True, title="Identify suspicious values in air quality data")
@@ -87,7 +85,7 @@ with ui.layout_columns():
 
                 df_original["ID"] = pd.to_numeric(df_original["ID"])
                 df["Flag"] = df["Flag"].astype("string")
-                
+
                 flag_inds = list(df[df["Flag"] == points.trace_name].index)
                 df_inds = [flag_inds[i] for i in point_inds if i < len(flag_inds)]
                 id = df.loc[df_inds, "ID"].values[0]

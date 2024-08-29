@@ -2,7 +2,6 @@
 
 from shiny.express import ui
 import ibis
-from io import StringIO
 import plotly.express as px
 import pandas as pd
 import plotly.graph_objects as go
@@ -50,12 +49,12 @@ def plot_ozone(x, y, ozone, outliers):
         x=x, 
         y=y, 
         color="Flag", 
-        opacity=0.9, 
+        opacity=0.8, 
         color_discrete_map={"-1": "#D3D3D3", "0": "#6ea0ff", "1": "#dc3545"},
         hover_data={"Flag": False}
     )
 
-    fig.update_traces(marker=dict(size=11))
+    fig.update_traces(marker=dict(size=12))
     fig.update_layout(template="plotly_white", showlegend=False)
 
     fig = go.FigureWidget(fig.data, fig.layout)
