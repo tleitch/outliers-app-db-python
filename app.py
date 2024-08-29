@@ -12,7 +12,7 @@ import helpers
 import plotly.graph_objects as go
 from plotly.callbacks import Points
 
-ui.page_opts(fillable=True)
+ui.page_opts(fillable=True, title="Identify suspicious values in air quality data")
 
 # Initialize the Ibis connection
 con = ibis.duckdb.connect(database=':memory:')
@@ -37,7 +37,7 @@ ozone = ozone[["ID", "State", "Date", "PPM", "AQI", "Flag"]]
 ozone.loc["Flag"] = ozone["Flag"].astype("string")
 outliers, ozone = helpers.create_outliers(ozone, "PPM")
 
-ui.markdown("## Identify suspicious values in air quality data")
+# ui.markdown("## Identify suspicious values in air quality data")
 
 with ui.layout_columns():
 
@@ -83,14 +83,20 @@ with ui.layout_columns():
                 point_inds: list[int] = points.point_inds
 
                 df = outliers_editable.data_view().reset_index()
+                df_original = outliers_editable.data().reset_index()
+
+                df_original["ID"] = pd.to_numeric(df_original["ID"])
                 df["Flag"] = df["Flag"].astype("string")
+                
                 flag_inds = list(df[df["Flag"] == points.trace_name].index)
                 df_inds = [flag_inds[i] for i in point_inds if i < len(flag_inds)]
+                id = df.loc[df_inds, "ID"].values[0]
+                original_index = df_original[df_original["ID"] == id].index.values.astype(int)[0].item()
 
-                await outliers_editable.update_cell_selection({"type": "row", "rows": df_inds})
+                await outliers_editable.update_cell_selection({"type": "row", "rows": original_index})
 
         
-        ui.input_action_button("write_data", "Write to database")
+        ui.input_action_button("write_data", "Write to database", width="50%")
 
         @outliers_editable.set_patch_fn
         def upgrade_patch(*, patch):
