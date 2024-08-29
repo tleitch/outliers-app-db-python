@@ -35,7 +35,6 @@ ozone.rename(
 
 ozone = ozone[["ID", "State", "Date", "PPM", "AQI", "Flag"]]
 ozone.loc["Flag"] = ozone["Flag"].astype("string")
-# ozone.loc[(ozone["ID"] == 462), "Flag"] = "1"
 outliers, ozone = helpers.create_outliers(ozone, "PPM")
 
 ui.markdown("## Identify suspicious values in air quality data")
@@ -52,13 +51,15 @@ with ui.layout_columns():
         @render_plotly
         def plot():
             fig = helpers.plot_ozone(input.x(), input.y(), ozone, outliers_editable.data_view()) 
-            fig.data[0].on_click(on_point_click)
+            fig.data[0].on_click(on_point_click) # Color 1
+            fig.data[1].on_click(on_point_click) # Color 2
             return fig
 
         pt_selected = reactive.value()
 
         def on_point_click(trace, points, state):
-            pt_selected.set(points)
+            if len(points.point_inds) > 0:
+                pt_selected.set(points)
         
     with ui.card():
         ui.card_header(ui.markdown("Change `Flag` to `1` to flag a value as an error. Flagged points will appear red in the plot."))
@@ -77,17 +78,23 @@ with ui.layout_columns():
             points: Points | None = pt_selected.get()
             if points is None:
                 await outliers_editable.update_cell_selection({"type": "row", "rows": []})
+            
+            else:
+                point_inds: list[int] = points.point_inds
 
-            point_inds: list[int] = points.point_inds
-            print(points)
+                df = outliers_editable.data_view().reset_index()
+                df["Flag"] = df["Flag"].astype("string")
+                flag_inds = list(df[df["Flag"] == points.trace_name].index)
+                df_inds = [flag_inds[i] for i in point_inds if i < len(flag_inds)]
 
-            await outliers_editable.update_cell_selection({"type": "row", "rows": point_inds})
+                await outliers_editable.update_cell_selection({"type": "row", "rows": df_inds})
 
         
         ui.input_action_button("write_data", "Write to database")
 
         @outliers_editable.set_patch_fn
         def upgrade_patch(*, patch):
+            pt_selected.set(None)
             return helpers.validate_patch(
                 patch, 
                 outliers_editable.data().iloc[patch["row_index"], patch["column_index"]]

@@ -14,7 +14,6 @@ def create_outliers(data, col):
 
     # Filter the data to get outliers
     outliers = data.loc[(data[col] > (q3 + iqr_bound)) | (data[col] < (q1 - iqr_bound))]
-    # outliers = outliers.reset_index()
     ozone = data.loc[(data[col] <= (q3 + iqr_bound)) & (data[col] >= (q1 - iqr_bound))]
     
     return outliers, ozone
@@ -46,15 +45,12 @@ def plot_ozone(x, y, ozone, outliers):
     cols = list(set([x, y]))
     combined = combined[[*cols, "Flag", "ID"]]
 
-    # combined["Flag"] = pd.to_numeric(combined["Flag"])
-
     fig = px.scatter(
         combined, 
         x=x, 
         y=y, 
         color="Flag", 
         opacity=0.9, 
-        # color_continuous_scale=[[0, "#D3D3D3"], [0.5, "#6ea0ff"], [1.0, "#dc3545"]],
         color_discrete_map={"-1": "#D3D3D3", "0": "#6ea0ff", "1": "#dc3545"},
         hover_data={"Flag": False}
     )
