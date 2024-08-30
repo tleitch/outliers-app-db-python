@@ -35,12 +35,14 @@ ozone = ozone[["ID", "State", "Date", "PPM", "AQI", "Flag"]]
 ozone.loc["Flag"] = ozone["Flag"].astype("string")
 outliers, ozone = helpers.create_outliers(ozone, "PPM")
 
-# ui.markdown("## Identify suspicious values in air quality data")
-
 with ui.layout_columns():
 
     with ui.card():
-        ui.card_header("Click on an outlier to highlight the point in the table.")
+        ui.card_header(
+            ui.HTML(
+                'Click on a <span style="color:#6ea0ff;">suspicious value</span> to highlight the point in the table.'
+            )
+        )
 
         with ui.layout_columns():
             ui.input_select("x", "X-axis variable:", choices=["Date", "PPM", "AQI"])
@@ -65,11 +67,7 @@ with ui.layout_columns():
         @render.data_frame
         def outliers_editable():
             outliers["Date"] = outliers.Date.astype("string")
-            return render.DataGrid(
-                outliers, 
-                editable=True,
-                selection_mode="rows"
-            )
+            return helpers.create_editable_table(outliers)
         
         @reactive.effect
         async def _():
@@ -78,19 +76,7 @@ with ui.layout_columns():
                 await outliers_editable.update_cell_selection({"type": "row", "rows": []})
             
             else:
-                point_inds: list[int] = points.point_inds
-
-                df = outliers_editable.data_view().reset_index()
-                df_original = outliers_editable.data().reset_index()
-
-                df_original["ID"] = pd.to_numeric(df_original["ID"])
-                df["Flag"] = df["Flag"].astype("string")
-
-                flag_inds = list(df[df["Flag"] == points.trace_name].index)
-                df_inds = [flag_inds[i] for i in point_inds if i < len(flag_inds)]
-                id = df.loc[df_inds, "ID"].values[0]
-                original_index = df_original[df_original["ID"] == id].index.values.astype(int)[0].item()
-
+                original_index = helpers.find_row_number(points, outliers_editable)
                 await outliers_editable.update_cell_selection({"type": "row", "rows": original_index})
 
         

@@ -1,6 +1,6 @@
 # helpers.py
 
-from shiny.express import ui
+from shiny.express import ui, render
 import ibis
 import plotly.express as px
 import pandas as pd
@@ -61,5 +61,23 @@ def plot_ozone(x, y, ozone, outliers):
 
     return fig
 
+def create_editable_table(df):
+    return render.DataGrid(
+        df, 
+        editable=True,
+        selection_mode="rows",
+        styles={"style": {"font-size": "18px", "padding-top": "15px", "padding-bottom": "15px"}}
+    )
 
+def find_row_number(points, editable_table):
+    point_inds: list[int] = points.point_inds
+    df = editable_table.data_view().reset_index()
+    df_original = editable_table.data().reset_index()
 
+    df_original["ID"] = pd.to_numeric(df_original["ID"])
+    df["Flag"] = df["Flag"].astype("string")
+
+    flag_inds = list(df[df["Flag"] == points.trace_name].index)
+    df_inds = [flag_inds[i] for i in point_inds if i < len(flag_inds)]
+    id = df.loc[df_inds, "ID"].values[0]
+    return df_original[df_original["ID"] == id].index.values.astype(int)[0].item()
