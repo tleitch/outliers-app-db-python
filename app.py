@@ -6,11 +6,9 @@ from shinywidgets import render_plotly
 import plotly.express as px
 import pandas as pd
 import ibis
-import helpers
-#import plotly.graph_objects as go
 from plotly.callbacks import Points
-
-ui.page_opts(fillable=True, title="Identify suspicious values in air quality data")
+from faicons import icon_svg
+import helpers
 
 # Initialize the Ibis connection
 con = ibis.duckdb.connect(database=':memory:')
@@ -35,13 +33,15 @@ ozone = ozone[["ID", "State", "Date", "PPM", "AQI", "Flag"]]
 ozone.loc["Flag"] = ozone["Flag"].astype("string")
 outliers, ozone = helpers.create_outliers(ozone, "PPM")
 
+ui.page_opts(fillable=True, title="Identify suspicious values in air quality data")
 with ui.layout_columns():
 
     with ui.card():
         ui.card_header(
-            ui.HTML(
-                'Click on a <span style="color:#6ea0ff;">suspicious value</span> to highlight the point in the table.'
-            )
+            ui.markdown(
+                f"{icon_svg('circle-info')} Click on a suspicious value (in blue) to highlight the point in the table."
+            ),
+            class_="bg-light"
         )
 
         with ui.layout_columns():
@@ -60,36 +60,56 @@ with ui.layout_columns():
         def on_point_click(trace, points, state):
             if len(points.point_inds) > 0:
                 pt_selected.set(points)
+    
+    with ui.layout_column_wrap(width=1, heights_equal="row"):
+        with ui.card():
+            ui.card_header(
+                ui.markdown(
+                    f"{icon_svg('circle-info')}Change `Flag` to `1` to flag a value as an error. Flagged points will appear red in the plot."
+                ),
+                class_="bg-light"
+            )
         
-    with ui.card():
-        ui.card_header(ui.markdown("Change `Flag` to `1` to flag a value as an error. Flagged points will appear red in the plot."))
+            @render.data_frame
+            def outliers_editable():
+                outliers["Date"] = outliers.Date.astype("string")
+                return helpers.create_editable_table(outliers)
+
+            ui.input_action_button("write_data", "Write to database", width="40%")
         
-        @render.data_frame
-        def outliers_editable():
-            outliers["Date"] = outliers.Date.astype("string")
-            return helpers.create_editable_table(outliers)
-        
-        @reactive.effect
-        async def _():
-            points: Points | None = pt_selected.get()
-            if points is None:
-                await outliers_editable.update_cell_selection({"type": "row", "rows": []})
+        with ui.card():
+            ui.card_header("About this app", class_="bg-light")
             
-            else:
-                original_index = helpers.find_row_number(points, outliers_editable)
-                await outliers_editable.update_cell_selection({"type": "row", "rows": original_index})
-
-        
-        ui.input_action_button("write_data", "Write to database", width="50%")
-
-        @outliers_editable.set_patch_fn
-        def upgrade_patch(*, patch):
-            pt_selected.set(None)
-            return helpers.validate_patch(
-                patch, 
-                outliers_editable.data().iloc[patch["row_index"], patch["column_index"]]
+            ui.markdown(
+                """ This app uses ozone data from the [EPA](https://www.epa.gov/outdoor-air-quality-data). 
+                The values shown in blue represent rows where `PPM` (ozone level in parts-per-million) was an outlier, 
+                identified using the [IQR method](https://en.wikipedia.org/wiki/Interquartile_range#Outliers). 
+                Some of these values are real, but some are errors, created for the purposes of this app.  
+                \nThe app reads from and writes to an in-memory DuckDB database. 
+                When you refresh the page, the database will be regenerated from scratch, so you will not see your changes."""
             )
 
+# Highlight corresponding row on point click
+@reactive.effect
+async def _():
+    points: Points | None = pt_selected.get()
+    if points is None:
+        await outliers_editable.update_cell_selection({"type": "row", "rows": []})
+    
+    else:
+        original_index = helpers.find_row_number(points, outliers_editable)
+        await outliers_editable.update_cell_selection({"type": "row", "rows": original_index})
+
+# Validate edit 
+@outliers_editable.set_patch_fn
+def upgrade_patch(*, patch):
+    pt_selected.set(None)
+    return helpers.validate_patch(
+        patch, 
+        outliers_editable.data().iloc[patch["row_index"], patch["column_index"]]
+    )
+
+# Write data to the database
 @reactive.Effect
 @reactive.event(input.write_data)
 def write_data():
@@ -107,7 +127,7 @@ def write_data():
 
     rows_to_update = changed_values[changed_values["Flag_old"] != changed_values["Flag_new"]]
 
-    # Update only the changed rows in the DuckDB database
+    # Update only the changed rows
     for _, row in rows_to_update.iterrows():
         outliers.loc[outliers['ID'] == row['ID'], 'Flag'] = row['Flag_new']
         sql_query = f"UPDATE ozone SET flag = '{row['Flag_new']}' WHERE id = '{row['ID']}'"
@@ -127,7 +147,3 @@ def write_data():
         )
     else:
         ui.notification_show(ui.markdown("No changes to write to database."), type="warning")
-
-    # ozone_new = con.table("ozone")
-    # expr = ozone_new.flag == 1
-    # print(expr.value_counts().execute())

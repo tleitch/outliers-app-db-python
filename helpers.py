@@ -66,7 +66,8 @@ def create_editable_table(df):
         df, 
         editable=True,
         selection_mode="rows",
-        styles={"style": {"font-size": "18px", "padding-top": "15px", "padding-bottom": "15px"}}
+        summary=False,
+        styles={"style": {"font-size": "16px", "padding-top": "12px", "padding-bottom": "12px"}}
     )
 
 def find_row_number(points, editable_table):

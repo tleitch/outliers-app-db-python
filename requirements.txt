@@ -11,6 +11,7 @@ decorator==5.1.1
 duckdb==1.0.0
 exceptiongroup==1.2.2
 executing==2.0.1
+faicons==0.2.2
 h11==0.14.0
 htmltools==0.5.3
 ibis-framework==9.2.0
@@ -22,6 +23,7 @@ jedi==0.19.1
 jupyter_client==8.6.2
 jupyter_core==5.7.2
 jupyterlab_widgets==3.0.11
+libsass==0.23.0
 linkify-it-py==2.0.3
 markdown-it-py==3.0.0
 matplotlib-inline==0.1.7
