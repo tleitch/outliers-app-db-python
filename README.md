@@ -1,4 +1,4 @@
-# Identify outliers through a Shiny app
+# Identify outliers in a Shiny app
 
 A Shiny for Python app that reads from and writes to a database and allows the user to flag suspicious or outlying values. 
 
