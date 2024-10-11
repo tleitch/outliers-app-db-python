@@ -16,22 +16,21 @@ con = ibis.duckdb.connect(database=':memory:')
 # Read initial data and initialize the table
 helpers.initialize_database(con, "data/ozone.duckdb", "ozone")
 
-ozone = con.table("ozone").to_pandas()
-ozone.rename(
-    columns={
-        "id": "ID",
-        "state_name": "State",
-        "date_local": "Date",
-        "arithmetic_mean": "PPM",
-        "aqi": "AQI",
-        "flag": "Flag",
-    },
-    inplace=True,
-)
+ozone = con.table("ozone").rename(
+    {
+        "ID":"id",
+        "State": "state_name",
+        "Date": "date_local",
+        "PPM": "arithmetic_mean",
+        "AQI": "aqi",
+        "Flag": "flag",
+    }
+).select(["ID", "State", "Date", "PPM", "AQI", "Flag"])
 
-ozone = ozone[["ID", "State", "Date", "PPM", "AQI", "Flag"]]
-ozone.loc["Flag"] = ozone["Flag"].astype("string")
-outliers, ozone = helpers.create_outliers(ozone, "PPM")
+ozone = ozone.mutate(Flag=ozone.Flag.cast('string'))
+outliers, ozone = helpers.create_outliers_table(ozone, "PPM")
+# Need the entire outliers table
+outliers = outliers.to_pandas()
 
 ui.page_opts(fillable=True, title="Identify suspicious values in air quality data")
 with ui.layout_columns():
@@ -72,7 +71,7 @@ with ui.layout_columns():
         
             @render.data_frame
             def outliers_editable():
-                outliers["Date"] = outliers.Date.astype("string")
+                # outliers["Date"] = outliers.Date.astype("string")
                 return helpers.create_editable_table(outliers)
 
             ui.input_action_button("write_data", "Write to database", width="40%")
