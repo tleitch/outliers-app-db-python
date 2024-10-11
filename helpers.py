@@ -6,14 +6,19 @@ import plotly.express as px
 import pandas as pd
 import plotly.graph_objects as go
 
-def create_outliers(data, col):
-    iqr_bound = 1.5 * (data[col].quantile(0.75) - data[col].quantile(0.25))
-    q1 = data[col].quantile(0.25)
-    q3 = data[col].quantile(0.75)
+def create_outliers_table(table, col):
+    # Calculate the IQR (Interquartile Range) bounds using Ibis
+    iqr_bound = 1.5 * (table[col].quantile(0.75) - table[col].quantile(0.25))
+    q1 = table[col].quantile(0.25)
+    q3 = table[col].quantile(0.75) 
 
-    # Filter the data to get outliers
-    outliers = data.loc[(data[col] > (q3 + iqr_bound)) | (data[col] < (q1 - iqr_bound))]
-    ozone = data.loc[(data[col] <= (q3 + iqr_bound)) & (data[col] >= (q1 - iqr_bound))]
+    # Create conditions for outliers and non-outliers
+    outlier_condition = (table[col] > (q3 + iqr_bound)) | (table[col] < (q1 - iqr_bound))
+    non_outlier_condition = (table[col] <= (q3 + iqr_bound)) & (table[col] >= (q1 - iqr_bound))
+
+    # Filter the table to get outliers and non-outliers
+    outliers = table.filter(outlier_condition)
+    ozone = table.filter(non_outlier_condition)
     
     return outliers, ozone
 
@@ -36,6 +41,8 @@ def validate_patch(patch, original_value):
         return original_value
 
 def plot_ozone(x, y, ozone, outliers):
+    # Need the entire table for plotting
+    ozone = ozone.to_pandas()
     ozone["Flag"] = "-1"
     combined = pd.concat([outliers, ozone])
     combined["Date"] = combined.Date.astype("string")
@@ -62,6 +69,7 @@ def plot_ozone(x, y, ozone, outliers):
     return fig
 
 def create_editable_table(df):
+    df["Date"] = df.Date.astype("string")
     return render.DataGrid(
         df, 
         editable=True,
