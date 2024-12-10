@@ -95,7 +95,7 @@ with ui.layout_columns():
 
             @render_plotly
             def plot():
-                fig = helpers.plot_ozone(input.x(), input.y(), ozone, outliers_editable.data_view()) 
+                fig = helpers.plot_ozone2(input.x(), input.y(), ozone, outliers_editable.data_view()) 
                 fig.data[0].on_click(on_point_click) # Color 1
                 fig.data[1].on_click(on_point_click) # Color 2
                 return fig
