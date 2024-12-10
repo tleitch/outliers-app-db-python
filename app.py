@@ -87,6 +87,24 @@ with ui.layout_columns():
                 \nThe app reads from and writes to an in-memory DuckDB database. 
                 When you refresh the page, the database will be regenerated from scratch, so you will not see your changes."""
             )
+    
+
+            with ui.layout_columns():
+                ui.input_select("x", "X-axis variable:", choices=["Date", "PPM", "AQI"])
+                ui.input_select("y", "Y-axis variable:", choices=["PPM", "AQI"])
+
+            @render_plotly
+            def plot():
+                fig = helpers.plot_ozone(input.x(), input.y(), ozone, outliers_editable.data_view()) 
+                fig.data[0].on_click(on_point_click) # Color 1
+                fig.data[1].on_click(on_point_click) # Color 2
+                return fig
+
+            pt_selected = reactive.value()
+
+            def on_point_click(trace, points, state):
+                if len(points.point_inds) > 0:
+                    pt_selected.set(points)
 
 # Highlight corresponding row on point click
 @reactive.effect

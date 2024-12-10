@@ -68,7 +68,7 @@ def plot_ozone(x, y, ozone, outliers):
 
     return fig
 
-
+# clone of plot_ozone for parallel plot
 def plot_ozone2(x, y, ozone, outliers):
     # Need the entire table for plotting
     ozone = ozone.to_pandas()
