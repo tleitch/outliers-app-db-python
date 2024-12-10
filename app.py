@@ -78,15 +78,6 @@ with ui.layout_columns():
         
         with ui.card():
             ui.card_header("About this app", class_="bg-light")
-            
-            ui.markdown(
-                """ This app uses ozone data from the [EPA](https://www.epa.gov/outdoor-air-quality-data). 
-                The values shown in blue represent rows where `PPM` (ozone level in parts-per-million) was an outlier, 
-                identified using the [IQR method](https://en.wikipedia.org/wiki/Interquartile_range#Outliers). 
-                Some of these values are real, but some are errors, created for the purposes of this app.  
-                \nThe app reads from and writes to an in-memory DuckDB database. 
-                When you refresh the page, the database will be regenerated from scratch, so you will not see your changes."""
-            )
     
 
             with ui.layout_columns():
