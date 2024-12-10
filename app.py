@@ -85,7 +85,7 @@ with ui.layout_columns():
                 ui.input_select("y", "Y-axis variable:", choices=["PPM", "AQI"])
 
             @render_plotly
-            def plot():
+            def plot2():
                 fig = helpers.plot_ozone2(input.x(), input.y(), ozone, outliers_editable.data_view()) 
                 fig.data[0].on_click(on_point_click) # Color 1
                 fig.data[1].on_click(on_point_click) # Color 2
