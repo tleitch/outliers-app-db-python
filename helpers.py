@@ -68,6 +68,37 @@ def plot_ozone(x, y, ozone, outliers):
 
     return fig
 
+
+def plot_ozone2(x, y, ozone, outliers):
+    # Need the entire table for plotting
+    ozone = ozone.to_pandas()
+    ozone["Flag"] = "-1"
+    combined = pd.concat([outliers, ozone])
+    combined["Date"] = combined.Date.astype("string")
+    combined["Flag"] = combined["Flag"].astype("string")
+
+    cols = list(set([x, y]))
+    combined = combined[[*cols, "Flag", "ID"]]
+
+    fig = px.scatter(
+        combined, 
+        x=x, 
+        y=y, 
+        color="Flag", 
+        opacity=0.8, 
+        color_discrete_map={"-1": "#D3D3D3", "0": "#6ea0ff", "1": "#dc3545"},
+        hover_data={"Flag": False}
+    )
+    fig.update_traces(marker=dict(size=12))
+    fig.update_layout(template="plotly_white", showlegend=False)
+
+    fig = go.FigureWidget(fig.data, fig.layout)
+
+    return fig
+
+
+
+
 def create_editable_table(df):
     df["Date"] = df.Date.astype("string")
     return render.DataGrid(
